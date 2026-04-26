@@ -1,0 +1,52 @@
+{
+  "name": "smartinsight-ai-blog",
+  "version": "1.0.0",
+  "description": "AI-powered blogging platform for IoT, Energy, Food, Healthcare, and Technology",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@prisma/client": "^5.22.0",
+    "prisma": "^5.22.0",
+    "next-auth": "^4.24.8",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "openai": "^4.67.3",
+    "framer-motion": "^11.11.0",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.6.1",
+    "date-fns": "^4.1.0",
+    "zustand": "^5.0.1",
+    "lucide-react": "^0.453.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

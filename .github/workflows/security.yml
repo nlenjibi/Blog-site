@@ -1,0 +1,174 @@
+name: Security Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly scan
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Scan for secrets
+        uses: trufflesec/truffleHog@master
+        with:
+          arguments: --regex --entropy=True
+
+  dependency-scan:
+    name: Dependency vulnerabilities
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        component: [frontend, backend]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          if [ "${{ matrix.component }}" = "backend" ]; then
+            cd backend
+          fi
+          npm ci
+          
+      - name: Check vulnerabilities
+        run: npm audit --audit-level=high
+        
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-${{ matrix.component }}
+          path: |
+            audit-report.json
+
+  code-analysis:
+    name: Static Code Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          languages: javascript, typescript
+          
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
+
+  container-scan:
+    name: Container Security
+    runs-on: ubuntu-latest
+    needs: [dependency-scan]
+    
+    if: false  # Enable when Docker files are added
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Docker image
+        run: docker build -t app:${{ github.sha }} .
+        
+      - name: Run Trivy scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan: fs
+          scan-ref: .
+          format: json
+          output: trivy-report.json
+          
+      - name: Upload trivy results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severities: high,critical
+          deny-packages: |
+            minimatch<3.0.0
+          deny-licenses: AGPL-1.0, AGPL-3.0, GPL-2.0, GPL-3.0
+
+  scorecard:
+    name: Security Scorecard
+    runs-on: ubuntu-latest
+    needs: [dependency-scan]
+    
+    if: false  # Enable after setting up OSF
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@master
+        env:
+          SCORECARD_TOKEN: ${{ secrets.SCORECARD_TOKEN }}
+          
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: scorecard-results
+          path: results.sarf
+
+  alert:
+    name: Security Alerts
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, dependency-scan, code-analysis]
+    if: failure()
+    
+    steps:
+      - name: Create issue on failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '[SECURITY] Security scan failed',
+              body: 'Security pipeline failed. Please investigate immediately.',
+              labels: ['security', 'urgent']
+            })
